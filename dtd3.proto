@@ -1,0 +1,31 @@
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.gRPC_dev.dtd3";
+option java_outer_classname = "DTD3Proto";
+option objc_class_prefix = "DTD3";
+
+package dtd3;
+
+// service def for I/O of learner
+service Learner {
+  rpc ReadData(LearnerRequest) returns (stream BufferResponse) {}
+  rpc UpdateNetworks(stream LearnerSend) returns (BufferStatus) {}
+}
+
+message LearnerRequest {
+  int32 status = 1;
+}
+
+message BufferResponse {
+  bytes train_data = 1;
+}
+
+message LearnerSend {
+  bytes network_params = 1;
+}
+
+message BufferStatus {
+  int32 status = 1;
+}
