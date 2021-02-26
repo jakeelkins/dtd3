@@ -33,7 +33,7 @@ import numpy as np
 import multiprocessing
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
-import gym
+#import gym
 
 from envs.ADCS_gym_cont import AttitudeControlEnv
 
@@ -48,6 +48,11 @@ import torch.nn.functional as F
 warnings.filterwarnings("ignore", category=FutureWarning)
 import ray
 
+if os.environ.get('https_proxy'):
+    del os.environ['https_proxy']
+if os.environ.get('http_proxy'):
+    del os.environ['http_proxy']
+
 # -----------
 max_timesteps = 500        # max timesteps in one episode
 env = AttitudeControlEnv(torque_scale=0.5, steps=max_timesteps)
@@ -59,13 +64,13 @@ num_cores = multiprocessing.cpu_count()
 
 print(f'num cores: {num_cores}')
 
-num_actors = 8
+num_actors = 64
 
 value_fxn_epsilon = 0.001
 n_step_return = 5   # n-step return to use
 rescale_value_fxn = False
 
-num_episodes_per_act = 2   # number episodes each actor runs locally before rechecking for state dict
+num_episodes_per_act = 3   # number episodes each actor runs locally before rechecking for state dict
 
 gamma = 0.99
 
@@ -78,9 +83,9 @@ batch_size = 128
 max_exploration_noise = 0.3
 min_exploration_noise = 0.01
 
-state_dim = env.observation_space.shape[0]
-action_dim = env.action_space.shape[0]
-max_action = float(env.action_space.high[0])
+state_dim = 11
+action_dim = 3
+max_action = float(1)
 exploration_noises = np.linspace(min_exploration_noise, max_exploration_noise, num_actors)
 
 ray.init(num_cpus=num_actors, num_gpus=0)
@@ -302,8 +307,8 @@ class PERBuffer:
         # is_weights = is_weights / max_is_weight
         is_weights = is_weights / is_weights.max()
 
-        return np.array(state), np.array(action), np.array(reward), np.array(next_state), np.array(
-            done), is_weights, np.array(indices)
+        return np.array(state).tolist(), np.array(action).tolist(), np.array(reward).tolist(), np.array(next_state).tolist(), np.array(
+            done).tolist(), is_weights.tolist(), np.array(indices).tolist()
 
 
 class ActorNet(nn.Module):
@@ -476,8 +481,8 @@ class Actor(object):
             while not done:
                 # select action and add exploration noise:
                 action = self._select_action(state)
-                action = action + np.random.normal(0, exploration_noise, size=env.action_space.shape[0])
-                action = action.clip(env.action_space.low, env.action_space.high)
+                action = action + np.random.normal(0, exploration_noise, size=3)
+                action = action.clip(-1, 1)
 
                 # take action in env:
                 next_state, reward, done, _ = env.step(action)
@@ -654,7 +659,8 @@ class BufferNetworkHandler(dtd3_pb2_grpc.LearnerServicer):
 
         for data_section in send_list:
             #print(data_section)
-            data_section_json = json.dumps(data_section.tolist())
+            #data_section_json = json.dumps(data_section.tolist())
+            data_section_json = json.dumps(data_section)
             yield dtd3_pb2.BufferResponse(train_data=bytes(data_section_json, 'utf-8'))
 
 

@@ -6,14 +6,14 @@ spacecraft attitude control simulator, built in the OpenAI gym format for easy i
 this one is continuous control.
 '''
 
-import gym
-from gym import spaces, logger
+#import gym
+#from gym import spaces, logger
 
 import numpy as np
 from numba import jit
 
 
-class AttitudeControlEnv(gym.Env):
+class AttitudeControlEnv():
 
     # ---- toolbox ----
     # all the typical functions needed for quaternion math stuff.
@@ -136,8 +136,8 @@ class AttitudeControlEnv(gym.Env):
 
         high = np.array([1.0, 1.0, 1.0, 1.0, 10, 10, 10, 10, 1.0, 1.0, 1.0])
 
-        self.action_space = spaces.Box(-1, +1, (3,), dtype=np.float32)
-        self.observation_space = spaces.Box(-high, high, dtype=np.float32)
+        self.action_space = 3
+        self.observation_space = 11
 
         self.nsteps = None
 
@@ -214,7 +214,7 @@ class AttitudeControlEnv(gym.Env):
         
         else:
             if self.steps_beyond_done == 0:
-                logger.warn("You are calling 'step()' even though this environment has already returned done = True. You should always call 'reset()' once you receive 'done = True' -- any further steps are undefined behavior.")
+                print("You are calling 'step()' even though this environment has already returned done = True. You should always call 'reset()' once you receive 'done = True' -- any further steps are undefined behavior.")
             self.steps_beyond_done += 1
             reward = 0.0
         
