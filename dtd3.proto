@@ -12,6 +12,7 @@ package dtd3;
 service Learner {
   rpc ReadData(LearnerRequest) returns (stream BufferResponse) {}
   rpc UpdateNetworks(stream LearnerSend) returns (BufferStatus) {}
+  rpc RunAgentStats(MonitorRequest) returns (AgentStats) {}
 }
 
 message LearnerRequest {
@@ -28,4 +29,14 @@ message LearnerSend {
 
 message BufferStatus {
   int32 status = 1;
+}
+
+// these are for the monitor client
+message MonitorRequest {
+  int32 status = 1;
+}
+
+message AgentStats {
+  float reward = 1;
+  float additional_data = 2;
 }

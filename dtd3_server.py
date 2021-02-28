@@ -64,15 +64,17 @@ num_cores = multiprocessing.cpu_count()
 
 print(f'num cores: {num_cores}')
 
-num_actors = 64
+num_actors = 8
 
 value_fxn_epsilon = 0.001
 n_step_return = 5   # n-step return to use
 rescale_value_fxn = False
 
-num_episodes_per_act = 3   # number episodes each actor runs locally before rechecking for state dict
+num_episodes_per_act = 2   # number episodes each actor runs locally before rechecking for state dict
 
 gamma = 0.99
+
+num_episodes_for_monitor = 10
 
 buffer_max_size = 2**21   # must be power of 2
 buffer_alpha = 0.6
@@ -564,6 +566,10 @@ class BufferNetworkHandler(dtd3_pb2_grpc.LearnerServicer):
         self.reading_indices = None
         self.first_dict = None
 
+        # -- for monitor --
+        self.num_episodes_for_monitor = num_episodes_for_monitor
+        self.actor_copy = ActorNet(state_dim, action_dim, max_action).to('cpu')
+
     def UpdateNetworks(self, request_iterator, context):
         '''
         this handles the sending of both networks and new priorities.
@@ -662,6 +668,53 @@ class BufferNetworkHandler(dtd3_pb2_grpc.LearnerServicer):
             #data_section_json = json.dumps(data_section.tolist())
             data_section_json = json.dumps(data_section)
             yield dtd3_pb2.BufferResponse(train_data=bytes(data_section_json, 'utf-8'))
+
+    def RunAgentStats(self, request, context):
+        '''
+        RPC that the monitor asks for. this asks for an agent stat update using current networks.
+        '''
+        #print(f'actor_copy keys: {self.actor_copy.state_dict().keys()}')
+
+        # load up most recent policy net
+        if self.network_list[0] is not None:
+            #print(f'network_list keys: {self.network_list[0].keys()}')
+            self.actor_copy.load_state_dict(self.network_list[0])
+
+        rewsum_list = []
+        meanminang_list = []
+
+        for ep_num in range(self.num_episodes_for_monitor):
+
+            done = False
+            obs = env.reset()
+
+            reward_list = []
+            obs_list = []
+            
+            while not done:
+                #act = policy.select_action(obs)
+                obs = torch.FloatTensor(obs.reshape(1, -1)).to('cpu')
+                act = self.actor_copy(obs).cpu().data.numpy().flatten()
+                act = act.clip(-1, 1)
+                obs, reward, done, _ = env.step(act)
+                reward_list.append(reward)
+                obs_list.append(obs)
+            
+            q4 = [i[0] for i in obs_list]
+            q1 = [i[1] for i in obs_list]
+            q2 = [i[2] for i in obs_list]
+            q3 = [i[3] for i in obs_list]
+
+            curr_minang = 2*np.arccos(np.max(q4))*(180/np.pi)
+            curr_rew_sum = np.sum(reward_list)
+            
+            rewsum_list.append(curr_rew_sum)
+            meanminang_list.append(curr_minang)
+
+        mean_min_ang = np.mean(meanminang_list)
+        mean_rew_sum = np.mean(rewsum_list)
+
+        return dtd3_pb2.AgentStats(reward=mean_rew_sum, additional_data=mean_min_ang)
 
 
 # ---------------------------------------------------------------------------------------------------------------
